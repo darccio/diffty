@@ -1,0 +1,47 @@
+{{define "index.html"}}
+<div class="max-w-3xl mx-auto">
+    <h2 class="text-xl font-bold mb-6">Select Repository</h2>
+    
+    <div class="bg-white shadow rounded-lg p-6 mb-8">
+        <h3 class="font-semibold mb-4">Add Repository</h3>
+        <form id="add-repo-form" action="/api/repository/add" method="POST" class="flex items-end gap-4">
+            <div class="flex-1">
+                <label for="repo-path" class="block text-sm font-medium text-gray-700 mb-1">Repository Path</label>
+                <input type="text" id="repo-path" name="path" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="/path/to/git/repository">
+            </div>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                Add Repository
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="font-semibold mb-4">Repositories</h3>
+        
+        {{if .HasRepos}}
+            <ul class="divide-y divide-gray-200">
+                {{range $path, $repo := .Repositories}}
+                    <li class="py-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-medium">{{$repo.Name}}</p>
+                                <p class="text-sm text-gray-500">{{$path}}</p>
+                            </div>
+                            <a href="/compare?repo={{$path}}" class="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500">
+                                Select
+                            </a>
+                        </div>
+                    </li>
+                {{end}}
+            </ul>
+        {{else}}
+            <div class="text-center py-8 text-gray-500">
+                <p>No repositories added yet.</p>
+                <p class="text-sm mt-2">Add a repository using the form above.</p>
+            </div>
+        {{end}}
+    </div>
+</div>
+{{end}} 

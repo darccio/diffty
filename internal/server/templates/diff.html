@@ -1,0 +1,374 @@
+{{define "diff.html"}}
+<div class="max-w-3xl mx-auto">
+    <div class="flex items-center gap-2 mb-6">
+        {{ if .SelectedFile }}
+            <a href="/diff?repo={{.RepoPath}}&source={{.SourceBranch}}&target={{.TargetBranch}}&source_commit={{.SourceCommit}}&target_commit={{.TargetCommit}}" class="text-blue-600 hover:underline">← Back to Files</a>
+        {{ else }}
+            <a href="/compare?repo={{.RepoPath}}" class="text-blue-600 hover:underline">← Back to Branch Selection</a>
+        {{ end }}
+        <span class="text-gray-500">/</span>
+        <h2 class="text-xl font-bold">{{.RepoName}}</h2>
+    </div>
+    
+    <div class="bg-white shadow rounded-lg p-4 mb-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center">
+                <span class="text-gray-600 font-medium">{{.SourceBranch}}</span>
+                <svg class="mx-2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                </svg>
+                <span class="text-gray-600 font-medium">{{.TargetBranch}}</span>
+            </div>
+            
+            {{ if .SelectedFile }}
+            <div class="flex items-center">
+                <span class="mr-2">Mark as:</span>
+                <form method="POST" action="/api/review-state?repo={{.RepoPath}}&source={{.SourceBranch}}&target={{.TargetBranch}}&source_commit={{.SourceCommit}}&target_commit={{.TargetCommit}}&file={{.SelectedFile}}&status=approved{{if .NextFilePath}}&next={{.NextFilePath}}{{end}}" class="inline mx-1 review-form">
+                    <button type="submit" class="px-3 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200" title="Approve (a)">
+                        <span class="inline-flex items-center">Approve <span class="ml-1 key-hint">a</span></span>
+                    </button>
+                </form>
+                <form method="POST" action="/api/review-state?repo={{.RepoPath}}&source={{.SourceBranch}}&target={{.TargetBranch}}&source_commit={{.SourceCommit}}&target_commit={{.TargetCommit}}&file={{.SelectedFile}}&status=rejected{{if .NextFilePath}}&next={{.NextFilePath}}{{end}}" class="inline mx-1 review-form">
+                    <button type="submit" class="px-3 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200" title="Reject (r)">
+                        <span class="inline-flex items-center">Reject <span class="ml-1 key-hint">r</span></span>
+                    </button>
+                </form>
+                <form method="POST" action="/api/review-state?repo={{.RepoPath}}&source={{.SourceBranch}}&target={{.TargetBranch}}&source_commit={{.SourceCommit}}&target_commit={{.TargetCommit}}&file={{.SelectedFile}}&status=skipped{{if .NextFilePath}}&next={{.NextFilePath}}{{end}}" class="inline mx-1 review-form">
+                    <button type="submit" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200" title="Skip (s)">
+                        <span class="inline-flex items-center">Skip <span class="ml-1 key-hint">s</span></span>
+                    </button>
+                </form>
+                {{ if .FileStatus }}
+                <span class="ml-3 px-2 py-1 rounded-full text-sm
+                    {{ if eq .FileStatus "approved" }}bg-green-100 text-green-800{{ end }}
+                    {{ if eq .FileStatus "rejected" }}bg-red-100 text-red-800{{ end }}
+                    {{ if eq .FileStatus "skipped" }}bg-yellow-100 text-yellow-800{{ end }}
+                    {{ if eq .FileStatus "mixed" }}bg-purple-100 text-purple-800{{ end }}
+                    ">
+                    {{ if eq .FileStatus "approved" }}Approved{{ end }}
+                    {{ if eq .FileStatus "rejected" }}Rejected{{ end }}
+                    {{ if eq .FileStatus "skipped" }}Skipped{{ end }}
+                    {{ if eq .FileStatus "mixed" }}Mixed{{ end }}
+                </span>
+                {{ end }}
+            </div>
+            {{ end }}
+        </div>
+    </div>
+    
+    {{ if .Error }}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            <p>{{.Error}}</p>
+        </div>
+    {{ else }}
+        {{ if .NoDiff }}
+            <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-6">
+                <p>No differences found between these branches.</p>
+            </div>
+        {{else}}
+            {{if .SelectedFile}}
+                <div id="diff-content" class="bg-white shadow rounded-lg p-4 overflow-x-auto" tabindex="0">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-mono text-lg font-medium">{{.SelectedFile}}</h3>
+                        <div class="flex space-x-2">
+                            <button id="prev-file" class="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300" title="Previous file (←)">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                            </button>
+                            <button id="next-file" class="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300" title="Next file (→)">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="font-mono text-sm whitespace-pre-wrap bg-gray-50 border rounded p-4 diff-container">{{range .DiffLines}}<div class="{{if hasPrefix . "-"}}bg-red-100{{else if hasPrefix . "+"}}bg-green-100{{end}}">{{.}}</div>{{end}}</div>
+                </div>
+            {{else}}
+                <div class="bg-white shadow rounded-lg p-4 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-semibold">Files Changed <span id="files-count" class="text-sm text-gray-500 ml-2"></span></h3>
+                        <div class="relative">
+                            <select id="status-filter" class="block appearance-none bg-white border border-gray-300 hover:border-gray-400 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="all">All files</option>
+                                <option value="unreviewed">Unreviewed</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="skipped">Skipped</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                    {{if .Files}}
+                        <ul id="files-list" class="divide-y divide-gray-200" tabindex="0">
+                            {{range .Files}}
+                            <li class="py-2 hover:bg-gray-50" data-path="{{.Path}}" data-status="{{.Status}}">
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center">
+                                        <span class="font-mono text-sm">{{.Path}}</span>
+                                        {{if eq .Status "approved"}}
+                                            <span class="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">Approved</span>
+                                        {{else if eq .Status "rejected"}}
+                                            <span class="ml-2 px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">Rejected</span>
+                                        {{else if eq .Status "skipped"}}
+                                            <span class="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">Skipped</span>
+                                        {{end}}
+                                    </div>
+                                    <a href="/diff?repo={{$.RepoPath}}&source={{$.SourceBranch}}&target={{$.TargetBranch}}&source_commit={{$.SourceCommit}}&target_commit={{$.TargetCommit}}&file={{.Path}}" 
+                                    class="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                                        View
+                                    </a>
+                                </div>
+                            </li>
+                            {{end}}
+                        </ul>
+                    {{else}}
+                        <p class="text-gray-500 py-4">No files have changed between these branches.</p>
+                    {{end}}
+                </div>
+            {{end}}
+        {{end}}
+    {{end}}
+    
+    <!-- Previous and Next File Links (hidden, used for keyboard navigation) -->
+    {{if .SelectedFile}}
+        <div class="hidden">
+            {{range $index, $file := .Files}}
+                {{if eq $file.Path $.SelectedFile}}
+                    {{if gt $index 0}}
+                        {{$prevIndex := sub $index 1}}
+                        {{$prevFile := index $.Files $prevIndex}}
+                        <a id="prev-file-link" href="/diff?repo={{$.RepoPath}}&source={{$.SourceBranch}}&target={{$.TargetBranch}}&source_commit={{$.SourceCommit}}&target_commit={{$.TargetCommit}}&file={{$prevFile.Path}}"></a>
+                    {{end}}
+                    
+                    {{if lt $index (sub (len $.Files) 1)}}
+                        {{$nextIndex := add $index 1}}
+                        {{$nextFile := index $.Files $nextIndex}}
+                        <a id="next-file-link" href="/diff?repo={{$.RepoPath}}&source={{$.SourceBranch}}&target={{$.TargetBranch}}&source_commit={{$.SourceCommit}}&target_commit={{$.TargetCommit}}&file={{$nextFile.Path}}"></a>
+                    {{end}}
+                {{end}}
+            {{end}}
+        </div>
+    {{end}}
+    
+    <!-- Loading indicator -->
+    <div id="loading-overlay" class="fixed top-4 right-4 bg-white px-4 py-3 rounded-lg shadow-lg flex items-center z-50 hidden">
+        <svg class="animate-spin h-5 w-5 mr-3 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Loading file...</span>
+    </div>
+</div>
+
+<script>
+    // Initialize keyboard navigation and review functions
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeKeyboardNavigation();
+        initializeStatusFilter();
+    });
+    
+    function showLoadingIndicator() {
+        document.getElementById('loading-overlay').classList.remove('hidden');
+    }
+    
+    function initializeKeyboardNavigation() {
+        // Listen for keyboard events globally
+        document.addEventListener('keydown', function(event) {
+            // Only process if not in an input field
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            // Handle file navigation
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                event.preventDefault();
+                
+                if (event.key === 'ArrowLeft' && document.getElementById('prev-file-link')) {
+                    showLoadingIndicator();
+                    setTimeout(() => {
+                        document.getElementById('prev-file-link').click();
+                    }, 50);
+                } else if (event.key === 'ArrowRight' && document.getElementById('next-file-link')) {
+                    showLoadingIndicator();
+                    setTimeout(() => {
+                        document.getElementById('next-file-link').click();
+                    }, 50);
+                }
+            }
+            
+            // Handle file review actions with keyboard shortcuts
+            const selectedFile = document.querySelector('form[action*="status=approved"]');
+            if (selectedFile) {
+                if (event.key === 'a' && !event.ctrlKey && !event.metaKey) {
+                    event.preventDefault();
+                    showLoadingIndicator();
+                    setTimeout(() => {
+                        document.querySelector('form[action*="status=approved"]').submit();
+                    }, 50);
+                } else if (event.key === 'r' && !event.ctrlKey && !event.metaKey) {
+                    event.preventDefault();
+                    showLoadingIndicator();
+                    setTimeout(() => {
+                        document.querySelector('form[action*="status=rejected"]').submit();
+                    }, 50);
+                } else if (event.key === 's' && !event.ctrlKey && !event.metaKey) {
+                    event.preventDefault();
+                    showLoadingIndicator();
+                    setTimeout(() => {
+                        document.querySelector('form[action*="status=skipped"]').submit();
+                    }, 50);
+                }
+            }
+            
+            // Handle file selection in list view
+            if (document.getElementById('files-list')) {
+                const filesList = document.getElementById('files-list');
+                const files = filesList.querySelectorAll('li:not(.hidden)');
+                
+                if (files.length === 0) return; // No visible files
+                
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    
+                    // Find currently focused file if any
+                    let currentIndex = -1;
+                    for (let i = 0; i < files.length; i++) {
+                        if (files[i].classList.contains('bg-gray-100')) {
+                            currentIndex = i;
+                            files[i].classList.remove('bg-gray-100');
+                            break;
+                        }
+                    }
+                    
+                    // Calculate new index
+                    let newIndex = currentIndex;
+                    if (event.key === 'ArrowDown') {
+                        newIndex = (currentIndex + 1) % files.length;
+                    } else {
+                        newIndex = (currentIndex - 1 + files.length) % files.length;
+                    }
+                    
+                    // Focus new file
+                    files[newIndex].classList.add('bg-gray-100');
+                    files[newIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                
+                // Open selected file with Enter
+                if (event.key === 'Enter') {
+                    for (const file of files) {
+                        if (file.classList.contains('bg-gray-100')) {
+                            const viewLink = file.querySelector('a');
+                            if (viewLink) {
+                                showLoadingIndicator();
+                                setTimeout(() => {
+                                    viewLink.click();
+                                }, 50);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Set up form submission events to show loading indicator
+        const reviewForms = document.querySelectorAll('.review-form');
+        reviewForms.forEach(form => {
+            form.addEventListener('submit', function(event) {
+                event.preventDefault();
+                showLoadingIndicator();
+                setTimeout(() => {
+                    this.submit();
+                }, 50);
+            });
+        });
+        
+        // Set up navigation buttons if they exist
+        const prevFileBtn = document.getElementById('prev-file');
+        const nextFileBtn = document.getElementById('next-file');
+        
+        if (prevFileBtn && document.getElementById('prev-file-link')) {
+            prevFileBtn.addEventListener('click', function() {
+                showLoadingIndicator();
+                setTimeout(() => {
+                    document.getElementById('prev-file-link').click();
+                }, 50);
+            });
+        }
+        
+        if (nextFileBtn && document.getElementById('next-file-link')) {
+            nextFileBtn.addEventListener('click', function() {
+                showLoadingIndicator();
+                setTimeout(() => {
+                    document.getElementById('next-file-link').click();
+                }, 50);
+            });
+        }
+    }
+    
+    function initializeStatusFilter() {
+        const statusFilter = document.getElementById('status-filter');
+        if (!statusFilter) return;
+        
+        // Update count on initial load
+        updateFilesCount();
+        
+        statusFilter.addEventListener('change', function() {
+            const selectedStatus = this.value;
+            const filesList = document.getElementById('files-list');
+            if (!filesList) return;
+            
+            const files = filesList.querySelectorAll('li');
+            let visibleCount = 0;
+            
+            files.forEach(file => {
+                const fileStatus = file.getAttribute('data-status');
+                if (selectedStatus === 'all' || fileStatus === selectedStatus) {
+                    file.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    file.classList.add('hidden');
+                    // Remove focus/selection if the file is now hidden
+                    file.classList.remove('bg-gray-100');
+                }
+            });
+            
+            // If no files are visible, show a message
+            const noFilesMessage = document.getElementById('no-files-message');
+            if (visibleCount === 0) {
+                if (!noFilesMessage) {
+                    const message = document.createElement('p');
+                    message.id = 'no-files-message';
+                    message.className = 'text-gray-500 py-4 text-center';
+                    message.textContent = `No ${selectedStatus !== 'all' ? selectedStatus + ' ' : ''}files found.`;
+                    filesList.parentNode.appendChild(message);
+                }
+            } else if (noFilesMessage) {
+                noFilesMessage.remove();
+            }
+            
+            // Update files count
+            updateFilesCount();
+        });
+    }
+    
+    function updateFilesCount() {
+        const filesList = document.getElementById('files-list');
+        const filesCount = document.getElementById('files-count');
+        if (!filesList || !filesCount) return;
+        
+        const visibleFiles = filesList.querySelectorAll('li:not(.hidden)').length;
+        const totalFiles = filesList.querySelectorAll('li').length;
+        
+        if (visibleFiles === totalFiles) {
+            filesCount.textContent = `(${totalFiles})`;
+        } else {
+            filesCount.textContent = `(${visibleFiles} of ${totalFiles})`;
+        }
+    }
+</script>
+{{end}} 

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>diffty - Git Diff Tool</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <header class="bg-gray-800 text-white py-4">
+        <div class="container mx-auto px-4">
+            <h1 class="text-2xl font-bold">diffty</h1>
+            <p class="text-sm text-gray-400">Git Diff Visualization and Review Tracking Tool</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        {{.RenderedContent}}
+    </main>
+
+    <footer class="bg-gray-800 text-white py-4 mt-auto">
+        <div class="container mx-auto px-4 text-center text-sm">
+            <p>diffty - Keyboard shortcuts: [a] Approve, [r] Reject, [s] Skip, [←→] Navigate</p>
+        </div>
+    </footer>
+
+</body>
+</html> 
