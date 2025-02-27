@@ -70,6 +70,20 @@ Then open http://localhost:10101 in your web browser. From there, you can:
 
 diffty uses the Git command-line tools to generate diffs between branches and presents them in a web interface. You can add and select repositories through the UI, and the review state is stored per repository in a JSON file at `$HOME/.diffty/repository/first-branch-commit-hash/second-branch-commit-hash/review-state.json`.
 
+## Screenshots
+
+### Homepage
+
+![](./docs/showcase/home-page.png)
+
+### Branches diff view
+
+![](./docs/showcase/files-changed.png)
+
+### File diff view
+
+![](./docs/showcase/diff.png)
+
 ## Testing
 
 diffty includes comprehensive testing to ensure reliability:
