@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"path/filepath"
 
 	"github.com/darccio/diffty/internal/server"
 	"github.com/darccio/diffty/internal/storage"
@@ -23,8 +22,7 @@ func main() {
 	}
 
 	// Setup server and routes
-	templateDir := filepath.Join("internal", "server", "templates")
-	srv, err := server.New(store, templateDir)
+	srv, err := server.New(store)
 	if err != nil {
 		log.Fatalf("Failed to initialize server: %v", err)
 	}
