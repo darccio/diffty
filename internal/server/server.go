@@ -2,12 +2,13 @@ package server
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -17,6 +18,18 @@ import (
 	"github.com/darccio/diffty/internal/storage"
 )
 
+//go:embed templates/*
+var templateDir embed.FS
+
+// getTemplateDir can be swapped at runtime to stub out a file system
+// for test purposes.
+var getTemplateDir = func() fs.FS {
+	return templateDir
+}
+
+//go:embed static
+var staticDir embed.FS
+
 // Server represents the HTTP server
 type Server struct {
 	storage storage.Storage
@@ -25,18 +38,7 @@ type Server struct {
 }
 
 // New creates a new Server instance
-func New(storage storage.Storage, templateDir string) (*Server, error) {
-	// Check if template directory exists
-	if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("template directory does not exist: %s", templateDir)
-	}
-
-	// Make sure the layout template exists
-	layoutPath := filepath.Join(templateDir, "layout.html")
-	if _, err := os.Stat(layoutPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("layout template does not exist: %s", layoutPath)
-	}
-
+func New(storage storage.Storage) (*Server, error) {
 	// Create template functions map
 	funcMap := template.FuncMap{
 		"hasPrefix": strings.HasPrefix, // Used to check if a string starts with a prefix
@@ -47,7 +49,7 @@ func New(storage storage.Storage, templateDir string) (*Server, error) {
 	}
 
 	// Parse all templates with the function map
-	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(filepath.Join(templateDir, "*.html"))
+	tmpl, err := template.New("").Funcs(funcMap).ParseFS(getTemplateDir(), "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load templates: %w", err)
 	}
@@ -138,8 +140,8 @@ func (s *Server) Router() http.Handler {
 	mux := http.NewServeMux()
 
 	// Static files
-	staticDir := filepath.Join("internal", "server", "static")
-	fileServer := http.FileServer(http.Dir(staticDir))
+	//staticDir := filepath.Join("internal", "server", "static")
+	fileServer := http.FileServer(http.FS(staticDir))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", fileServer))
 
 	// API routes

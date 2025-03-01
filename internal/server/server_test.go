@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/darccio/diffty/internal/git"
 	"github.com/darccio/diffty/internal/models"
@@ -174,42 +176,37 @@ func setupTestServer(t *testing.T) (*Server, *MockStorage) {
 		},
 	}
 
-	// Create a temporary directory for templates
-	tempDir, err := os.MkdirTemp("", "diffty-test")
-	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %v", err)
-	}
-	t.Cleanup(func() {
-		os.RemoveAll(tempDir)
-	})
-
-	// Create the template directories
-	templateDir := filepath.Join(tempDir, "internal", "server", "templates")
-	if err := os.MkdirAll(templateDir, 0755); err != nil {
-		t.Fatalf("Failed to create template directory: %v", err)
-	}
-
-	// Create a minimal layout template
-	layoutContent := `{{define "layout.html"}}<!DOCTYPE html><html><body>{{.RenderedContent}}</body></html>{{end}}`
-	if err := os.WriteFile(filepath.Join(templateDir, "layout.html"), []byte(layoutContent), 0644); err != nil {
-		t.Fatalf("Failed to create layout template: %v", err)
-	}
-
-	// Create other required templates
-	templates := map[string]string{
-		"index.html":   `{{define "index.html"}}Index Page{{end}}`,
-		"compare.html": `{{define "compare.html"}}Compare Page{{end}}`,
-		"diff.html":    `{{define "diff.html"}}Diff Page{{end}}`,
-		"error.html":   `{{define "error.html"}}Error: {{.Title}} - {{.Message}}{{end}}`,
-	}
-
-	for name, content := range templates {
-		if err := os.WriteFile(filepath.Join(templateDir, name), []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to create %s template: %v", name, err)
+	// remporarly replate getTemplateDir with a mocked one.
+	origFS := getTemplateDir
+	getTemplateDir = func() fs.FS {
+		return fstest.MapFS{
+			"templates/layout.html": &fstest.MapFile{
+				Data: []byte(`{{define "layout.html"}}<!DOCTYPE html><html><body>{{.RenderedContent}}</body></html>{{end}}`),
+				Mode: 0644,
+			},
+			"templates/index.html": &fstest.MapFile{
+				Data: []byte(`{{define "index.html"}}Index Page{{end}}`),
+				Mode: 0644,
+			},
+			"templates/compare.html": &fstest.MapFile{
+				Data: []byte(`{{define "compare.html"}}Compare Page{{end}}`),
+				Mode: 0644,
+			},
+			"templates/diff.html": &fstest.MapFile{
+				Data: []byte(`{{define "diff.html"}}Diff Page{{end}}`),
+				Mode: 0644,
+			},
+			"templates/error.html": &fstest.MapFile{
+				Data: []byte(`{{define "error.html"}}Error: {{.Title}} - {{.Message}}{{end}}`),
+				Mode: 0644,
+			},
 		}
 	}
+	t.Cleanup(func() {
+		getTemplateDir = origFS
+	})
 
-	server, err := New(mockStorage, templateDir)
+	server, err := New(mockStorage)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
